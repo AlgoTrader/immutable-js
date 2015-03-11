@@ -9,7 +9,7 @@
 
 import { KeyedIterable } from './Iterable'
 import { KeyedCollection } from './Collection'
-import { Map, MapPrototype, emptyMap } from './Map'
+//import { Map, MapPrototype, emptyMap } from './Map'
 import { DELETE } from './TrieUtils'
 
 import invariant from './utils/invariant'
@@ -22,7 +22,13 @@ export class Record extends KeyedCollection {
       if (!(this instanceof RecordType)) {
         return new RecordType(values);
       }
-      this._map = Map(values);
+      //this._map = Map(values);
+      // _keys are in prototype
+      this._values = new Array(this._keys.length);
+      for(var index=0; index<this._keys.length; ++index) {
+         var k = this._keys[index];
+         this._values[index] = values[k] || this._defaultValues[k];
+      }
     };
 
     var keys = Object.keys(defaultValues);
@@ -68,44 +74,51 @@ export class Record extends KeyedCollection {
       return notSetValue;
     }
     var defaultVal = this._defaultValues[k];
-    return this._map ? this._map.get(k, defaultVal) : defaultVal;
+    var index = this._keys.indexOf(k);
+    return this._values ? (this._values[index] || defaultVal) : defaultVal;
   }
 
   // @pragma Modification
 
   clear() {
     if (this.__ownerID) {
-      this._map && this._map.clear();
+      this._values && (this._values = new Array(this._keys.length));
       return this;
     }
-    var SuperRecord = Object.getPrototypeOf(this).constructor;
-    return SuperRecord._empty || (SuperRecord._empty = makeRecord(this, emptyMap()));
+    var Constructor = Object.getPrototypeOf(this).constructor;
+    return new Constructor({}, recordName(this));
   }
 
   set(k, v) {
     if (!this.has(k)) {
       throw new Error('Cannot set unknown key "' + k + '" on ' + recordName(this));
     }
-    var newMap = this._map && this._map.set(k, v);
-    if (this.__ownerID || newMap === this._map) {
+    var index = this._keys.indexOf(k);
+    var newValues = this._values && this._values.slice();
+    newValues[index] = v;
+    if (this.__ownerID) {
+      this._values = newValues;
       return this;
     }
-    return makeRecord(this, newMap);
+    return makeRecord(this, newValues);
   }
 
   remove(k) {
     if (!this.has(k)) {
       return this;
     }
-    var newMap = this._map && this._map.remove(k);
-    if (this.__ownerID || newMap === this._map) {
+    var index = this._keys.indexOf(k);
+    var newValues = this._values && this._values.slice();
+    delete newValues[index];
+    if (this.__ownerID) {
+      this._values = newValues;
       return this;
     }
-    return makeRecord(this, newMap);
+    return makeRecord(this, newValues);
   }
 
   wasAltered() {
-    return this._map.wasAltered();
+    return false;
   }
 
   __iterator(type, reverse) {
@@ -120,37 +133,37 @@ export class Record extends KeyedCollection {
     if (ownerID === this.__ownerID) {
       return this;
     }
-    var newMap = this._map && this._map.__ensureOwner(ownerID);
+    var newValues = this._values && this._values.slice();
     if (!ownerID) {
       this.__ownerID = ownerID;
-      this._map = newMap;
+      this._values = newValues;
       return this;
     }
-    return makeRecord(this, newMap, ownerID);
+    return makeRecord(this, newValues, ownerID);
   }
 }
 
 var RecordPrototype = Record.prototype;
 RecordPrototype[DELETE] = RecordPrototype.remove;
-RecordPrototype.deleteIn =
-RecordPrototype.removeIn = MapPrototype.removeIn;
-RecordPrototype.merge = MapPrototype.merge;
-RecordPrototype.mergeWith = MapPrototype.mergeWith;
-RecordPrototype.mergeIn = MapPrototype.mergeIn;
-RecordPrototype.mergeDeep = MapPrototype.mergeDeep;
-RecordPrototype.mergeDeepWith = MapPrototype.mergeDeepWith;
-RecordPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
-RecordPrototype.setIn = MapPrototype.setIn;
-RecordPrototype.update = MapPrototype.update;
-RecordPrototype.updateIn = MapPrototype.updateIn;
-RecordPrototype.withMutations = MapPrototype.withMutations;
-RecordPrototype.asMutable = MapPrototype.asMutable;
-RecordPrototype.asImmutable = MapPrototype.asImmutable;
+//RecordPrototype.deleteIn =
+//RecordPrototype.removeIn = MapPrototype.removeIn;
+//RecordPrototype.merge = MapPrototype.merge;
+//RecordPrototype.mergeWith = MapPrototype.mergeWith;
+//RecordPrototype.mergeIn = MapPrototype.mergeIn;
+//RecordPrototype.mergeDeep = MapPrototype.mergeDeep;
+//RecordPrototype.mergeDeepWith = MapPrototype.mergeDeepWith;
+//RecordPrototype.mergeDeepIn = MapPrototype.mergeDeepIn;
+//RecordPrototype.setIn = MapPrototype.setIn;
+//RecordPrototype.update = MapPrototype.update;
+//RecordPrototype.updateIn = MapPrototype.updateIn;
+//RecordPrototype.withMutations = MapPrototype.withMutations;
+//RecordPrototype.asMutable = MapPrototype.asMutable;
+//RecordPrototype.asImmutable = MapPrototype.asImmutable;
 
 
-function makeRecord(likeRecord, map, ownerID) {
+function makeRecord(likeRecord, values, ownerID) {
   var record = Object.create(Object.getPrototypeOf(likeRecord));
-  record._map = map;
+  record._values = values;
   record.__ownerID = ownerID;
   return record;
 }
@@ -158,3 +171,4 @@ function makeRecord(likeRecord, map, ownerID) {
 function recordName(record) {
   return record._name || record.constructor.name;
 }
+
